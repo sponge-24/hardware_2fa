@@ -2,11 +2,11 @@
 #include <NTPClient.h>
 #include <TOTP.h>
 
-const char* ssid = "Heartstopper";
-const char* password = "Charlie@69";
+const char* ssid = "your-ssid";
+const char* password = "your-password";
 
 // Replace this with your actual 80-bit base32 key (in string format)
-const char* base32Key = "JBSWY3DPEHPK3PXP"; // Example key, replace with your own
+const char* base32Key = "3mv5 uezm tmip rfvj mdlh wllx 4rmb tqir"; // Example key, replace with your own
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
@@ -38,8 +38,22 @@ int base32_decode(const char *base32, uint8_t *output) {
     return outputIndex; // Return the number of decoded bytes
 }
 
+void formatBase32Key(const char* rawKey, char* formattedKey) {
+    size_t len = strlen(rawKey);
+    size_t j = 0; // Index for the formatted key
+
+    for (size_t i = 0; i < len; i++) {
+        char c = rawKey[i];
+        // Check if the character is alphanumeric
+        if (isalnum(c)) {
+            formattedKey[j++] = toupper(c); // Add to formattedKey as uppercase
+        }
+    }
+    formattedKey[j] = '\0'; // Null-terminate the string
+}
+
 // Prepare to store the hmac key
-uint8_t hmacKey[10]; // 80 bits = 10 bytes
+uint8_t hmacKey[50]; // 80 bits = 10 bytes
 
 TOTP totp = TOTP(hmacKey, sizeof(hmacKey));
 String totpCode;
@@ -61,8 +75,12 @@ void setup() {
     Serial.println(WiFi.localIP());
     Serial.println();
 
+    char formattedKey[50];
+
+    formatBase32Key(base32Key, formattedKey);
+    Serial.println(formattedKey);
     // Decode the base32 key into a byte array
-    size_t hmacKeyLen = base32_decode(base32Key, hmacKey);
+    size_t hmacKeyLen = base32_decode(formattedKey, hmacKey);
 
     // Start the NTP client
     timeClient.begin();
