@@ -1,19 +1,35 @@
 #include <WiFi.h>
+#include <Wire.h>
 #include <NTPClient.h>
 #include <TOTP.h>
 #include <WebServer.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
 
+// OLED display width and height
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32
+
+// I2C address of the OLED display (usually 0x3C)
+#define OLED_ADDRESS 0x3C
+
+// Create an instance of the display object
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
 // EEPROM size
-#define EEPROM_SIZE 512
+#define EEPROM_SIZE 1024
 
 // EEPROM addresses for storing configuration
+#define EEPROM_SIZE 1024
 #define SECRET_KEY_ADDRESS 0
-#define SSID_ADDRESS 128
-#define PASSWORD_ADDRESS 192
+#define ACCOUNT_NAME_ADDRESS 128
+#define SSID_ADDRESS 256
+#define PASSWORD_ADDRESS 384
 
 // Maximum lengths for configuration strings
 #define MAX_SECRET_KEY_LENGTH 128
+#define MAX_ACCOUNT_NAME_LENGTH 64
 #define MAX_SSID_LENGTH 32
 #define MAX_PASSWORD_LENGTH 64
 
@@ -23,6 +39,7 @@
 char ssid[MAX_SSID_LENGTH] = "";
 char password[MAX_PASSWORD_LENGTH] = "";
 char base32Key[MAX_SECRET_KEY_LENGTH] = "";
+char accountName[MAX_ACCOUNT_NAME_LENGTH] = "";
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
@@ -70,6 +87,7 @@ void formatBase32Key(const char* rawKey, char* formattedKey) {
 
 void saveConfig() {
     EEPROM.put(SECRET_KEY_ADDRESS, base32Key);
+    EEPROM.put(ACCOUNT_NAME_ADDRESS, accountName);
     EEPROM.put(SSID_ADDRESS, ssid);
     EEPROM.put(PASSWORD_ADDRESS, password);
     EEPROM.commit();
@@ -77,11 +95,13 @@ void saveConfig() {
 
 void loadConfig() {
     EEPROM.get(SECRET_KEY_ADDRESS, base32Key);
+    EEPROM.get(ACCOUNT_NAME_ADDRESS, accountName);
     EEPROM.get(SSID_ADDRESS, ssid);
     EEPROM.get(PASSWORD_ADDRESS, password);
     
     // Check if the loaded values are valid
     if (base32Key[0] == 0xFF) base32Key[0] = '\0';
+    if (accountName[0] == 0xFF) accountName[0] = '\0';
     if (ssid[0] == 0xFF) ssid[0] = '\0';
     if (password[0] == 0xFF) password[0] = '\0';
 }
@@ -90,6 +110,7 @@ void handleRoot() {
     String html = "<html><body>";
     html += "<h1>TOTP Configuration</h1>";
     html += "<form action='/setconfig' method='post'>";
+    html += "Account Name: <input type='text' name='accountname' value='" + String(accountName) + "'><br>";
     html += "Secret Key: <input type='text' name='secretkey' value='" + String(base32Key) + "'><br>";
     html += "WiFi SSID: <input type='text' name='ssid' value='" + String(ssid) + "'><br>";
     html += "WiFi Password: <input type='password' name='password' value='" + String(password) + "'><br>";
@@ -99,7 +120,14 @@ void handleRoot() {
 }
 
 void handleSetConfig() {
+
     bool configChanged = false;
+    
+    if (server.hasArg("accountname")) {
+        strncpy(accountName, server.arg("accountname").c_str(), MAX_ACCOUNT_NAME_LENGTH - 1);
+        accountName[MAX_ACCOUNT_NAME_LENGTH - 1] = '\0';
+        configChanged = true;
+    }
 
     if (server.hasArg("secretkey")) {
         String newKey = server.arg("secretkey");
@@ -133,12 +161,14 @@ void handleSetConfig() {
         server.send(200, "text/plain", "Configuration updated successfully. Restarting...");
         delay(1000);
         ESP.restart();
-    } else {
+    } 
+    else {
         server.send(200, "text/plain", "No changes in configuration");
     }
 }
 
 void setup() {
+
     Serial.begin(115200);
     while (!Serial);
     Serial.println("TOTP Generator Starting...");
@@ -147,9 +177,18 @@ void setup() {
     pinMode(STATUS_LED, OUTPUT);
     digitalWrite(STATUS_LED, LOW);  // Turn off LED initially
 
-    // Initialize EEPROM and load config (unchanged)
+    // Initialize EEPROM and load config
     EEPROM.begin(EEPROM_SIZE);
     loadConfig();
+
+    // Initialize OLED display
+    if(!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for(;;);
+    }
+    display.clearDisplay();
+    display.display();
+    
 
     // Set up Access Point
     WiFi.mode(WIFI_AP_STA);
@@ -172,9 +211,8 @@ void setup() {
         Serial.println("Connected to WiFi");
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
-
-    } 
-    else {
+        
+    } else {
         Serial.println("Failed to connect to saved WiFi. Using AP mode only.");
         // Blink LED rapidly in AP-only mode
         for (int i = 0; i < 10; i++) {
@@ -192,24 +230,39 @@ void setup() {
     server.begin();
     Serial.println("Web server started");
 
-    // Initial TOTP setup (unchanged)
+    // Initial TOTP setup
     char formattedKey[MAX_SECRET_KEY_LENGTH];
     formatBase32Key(base32Key, formattedKey);
     size_t hmacKeyLen = base32_decode(formattedKey, hmacKey);
     totp = TOTP(hmacKey, hmacKeyLen);
 }
 
+
+
 void loop() {
     server.handleClient();
 
-    // Update the time and TOTP code (unchanged)
+    // Update the time and TOTP code
     timeClient.update();
     String newCode = totp.getCode(timeClient.getEpochTime());
     if (totpCode != newCode) {
         totpCode = newCode;
-        Serial.print("TOTP code: ");
-        Serial.println(newCode);
-    }
+        Serial.print("TOTP code for ");
+        Serial.print(accountName);
+        Serial.print(": ");
+        Serial.println(totpCode);
 
-    delay(1000);
+        // Update OLED display
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);  // First line for account name
+        display.println(accountName);
+        display.setCursor(0, 16);  // Second line for TOTP code
+        display.setTextSize(2);    // Bigger font for the code
+        display.println(totpCode);
+        display.display();
+    }
+  
+    delay(10);  // Short delay to prevent watchdog timer issues
 }
