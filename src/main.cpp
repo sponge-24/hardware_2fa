@@ -7,6 +7,9 @@
 #include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
 
+// Define the push button pin
+#define PUSH_BUTTON 16 // Change this to the appropriate pin for your board
+
 // OLED display width and height
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
@@ -200,6 +203,9 @@ void setup() {
     pinMode(STATUS_LED, OUTPUT);
     digitalWrite(STATUS_LED, LOW);  // Turn off LED initially
 
+    // Initialize the push button pin
+    pinMode(PUSH_BUTTON, INPUT_PULLUP);
+
     // Initialize EEPROM and load config
     EEPROM.begin(EEPROM_SIZE);
     loadConfig();
@@ -213,11 +219,17 @@ void setup() {
     display.display();
     
 
-    // Set up Access Point
-    WiFi.mode(WIFI_AP_STA);
-    WiFi.softAP("TOTP_Config_AP", "password");
-    Serial.print("Access Point IP: ");
-    Serial.println(WiFi.softAPIP());
+    if (digitalRead(PUSH_BUTTON) == LOW) {
+        // Enable Access Point mode
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP("TOTP_Config_AP", "password");
+        Serial.print("Access Point IP: ");
+        Serial.println(WiFi.softAPIP());
+    } else {
+        // Disable Access Point mode
+        WiFi.mode(WIFI_STA);
+        Serial.println("Access Point disabled");
+    }
 
     // Try to connect to saved WiFi
     WiFi.begin(ssid, password);
@@ -235,13 +247,6 @@ void setup() {
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
         
-    } else {
-        Serial.println("Failed to connect to saved WiFi. Using AP mode only.");
-        // Blink LED rapidly in AP-only mode
-        for (int i = 0; i < 10; i++) {
-            digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
-            delay(100);
-        }
     }
 
     // Start NTP client
@@ -281,6 +286,21 @@ void drawProgressCircle(int x, int y, int radius, float progress) {
 void loop() {
     server.handleClient();
 
+    // Check the push button state
+    if (digitalRead(PUSH_BUTTON) == LOW) {
+        // Button is pressed, toggle Access Point mode
+        if (WiFi.getMode() == WIFI_AP_STA) {
+            // Disable Access Point mode
+            WiFi.mode(WIFI_STA);
+            Serial.println("Access Point disabled");
+        } else {
+            // Enable Access Point mode
+            WiFi.mode(WIFI_AP_STA);
+            WiFi.softAP("TOTP_Config_AP", "password");
+            Serial.print("Access Point IP: ");
+            Serial.println(WiFi.softAPIP());
+        }
+    }
     // Update the time and TOTP code
     timeClient.update();
     String newCode = totp.getCode(timeClient.getEpochTime());
@@ -312,5 +332,5 @@ void loop() {
 
     display.display();
   
-    delay(100);  // Short delay for smoother animation
+    delay(300);  // Short delay for smoother animation
 }
