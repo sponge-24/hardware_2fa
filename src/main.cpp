@@ -4,23 +4,29 @@
 #include <WebServer.h>
 #include <EEPROM.h>
 
-const char* ssid = "Heartstopper";
-const char* password = "Charlie@69";
+// EEPROM size
+#define EEPROM_SIZE 512
+
+// EEPROM addresses for storing configuration
+#define SECRET_KEY_ADDRESS 0
+#define SSID_ADDRESS 128
+#define PASSWORD_ADDRESS 192
+
+// Maximum lengths for configuration strings
+#define MAX_SECRET_KEY_LENGTH 128
+#define MAX_SSID_LENGTH 32
+#define MAX_PASSWORD_LENGTH 64
+
+// LED pin for status indication
+#define STATUS_LED 2  // Built-in LED on most ESP32 boards
+
+char ssid[MAX_SSID_LENGTH] = "";
+char password[MAX_PASSWORD_LENGTH] = "";
+char base32Key[MAX_SECRET_KEY_LENGTH] = "";
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 WebServer server(80);
-
-// EEPROM size
-#define EEPROM_SIZE 512
-
-// EEPROM address to store the secret key
-#define SECRET_KEY_ADDRESS 0
-
-// Maximum length of the secret key
-#define MAX_SECRET_KEY_LENGTH 128
-
-char base32Key[MAX_SECRET_KEY_LENGTH] = "";
 
 // Prepare to store the hmac key
 uint8_t hmacKey[50]; // 80 bits = 10 bytes
@@ -62,77 +68,133 @@ void formatBase32Key(const char* rawKey, char* formattedKey) {
     formattedKey[j] = '\0'; // Null-terminate the string
 }
 
-void saveSecretKey(const char* key) {
-    strncpy(base32Key, key, MAX_SECRET_KEY_LENGTH - 1);
-    base32Key[MAX_SECRET_KEY_LENGTH - 1] = '\0';
+void saveConfig() {
     EEPROM.put(SECRET_KEY_ADDRESS, base32Key);
+    EEPROM.put(SSID_ADDRESS, ssid);
+    EEPROM.put(PASSWORD_ADDRESS, password);
     EEPROM.commit();
 }
 
-void loadSecretKey() {
+void loadConfig() {
     EEPROM.get(SECRET_KEY_ADDRESS, base32Key);
-    if (base32Key[0] == 0xFF) {
-        base32Key[0] = '\0';  // No key stored yet
-    }
+    EEPROM.get(SSID_ADDRESS, ssid);
+    EEPROM.get(PASSWORD_ADDRESS, password);
+    
+    // Check if the loaded values are valid
+    if (base32Key[0] == 0xFF) base32Key[0] = '\0';
+    if (ssid[0] == 0xFF) ssid[0] = '\0';
+    if (password[0] == 0xFF) password[0] = '\0';
 }
 
 void handleRoot() {
     String html = "<html><body>";
-    html += "<h1>TOTP Generator</h1>";
-    html += "<form action='/setkey' method='post'>";
+    html += "<h1>TOTP Configuration</h1>";
+    html += "<form action='/setconfig' method='post'>";
     html += "Secret Key: <input type='text' name='secretkey' value='" + String(base32Key) + "'><br>";
-    html += "<input type='submit' value='Set Key'>";
+    html += "WiFi SSID: <input type='text' name='ssid' value='" + String(ssid) + "'><br>";
+    html += "WiFi Password: <input type='password' name='password' value='" + String(password) + "'><br>";
+    html += "<input type='submit' value='Update Configuration'>";
     html += "</form></body></html>";
     server.send(200, "text/html", html);
 }
 
-void handleSetKey() {
+void handleSetConfig() {
+    bool configChanged = false;
+
     if (server.hasArg("secretkey")) {
         String newKey = server.arg("secretkey");
-        saveSecretKey(newKey.c_str());
-        server.send(200, "text/plain", "Key updated successfully");
+        if (newKey != String(base32Key)) {
+            strncpy(base32Key, newKey.c_str(), MAX_SECRET_KEY_LENGTH - 1);
+            base32Key[MAX_SECRET_KEY_LENGTH - 1] = '\0';
+            configChanged = true;
+        }
+    }
+
+    if (server.hasArg("ssid")) {
+        String newSSID = server.arg("ssid");
+        if (newSSID != String(ssid)) {
+            strncpy(ssid, newSSID.c_str(), MAX_SSID_LENGTH - 1);
+            ssid[MAX_SSID_LENGTH - 1] = '\0';
+            configChanged = true;
+        }
+    }
+
+    if (server.hasArg("password")) {
+        String newPassword = server.arg("password");
+        if (newPassword != String(password)) {
+            strncpy(password, newPassword.c_str(), MAX_PASSWORD_LENGTH - 1);
+            password[MAX_PASSWORD_LENGTH - 1] = '\0';
+            configChanged = true;
+        }
+    }
+
+    if (configChanged) {
+        saveConfig();
+        server.send(200, "text/plain", "Configuration updated successfully. Restarting...");
+        delay(1000);
+        ESP.restart();
     } else {
-        server.send(400, "text/plain", "Missing secret key");
+        server.send(200, "text/plain", "No changes in configuration");
     }
 }
 
 void setup() {
     Serial.begin(115200);
     while (!Serial);
-    Serial.println("TOTP demo\n");
+    Serial.println("TOTP Generator Starting...");
 
-    // Initialize EEPROM
+    // Initialize LED
+    pinMode(STATUS_LED, OUTPUT);
+    digitalWrite(STATUS_LED, LOW);  // Turn off LED initially
+
+    // Initialize EEPROM and load config (unchanged)
     EEPROM.begin(EEPROM_SIZE);
+    loadConfig();
 
-    // Load the secret key from EEPROM
-    loadSecretKey();
+    // Set up Access Point
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP("TOTP_Config_AP", "password");
+    Serial.print("Access Point IP: ");
+    Serial.println(WiFi.softAPIP());
 
-    // Connect to the WiFi network
+    // Try to connect to saved WiFi
     WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Establishing connection to WiFi...");
-    }
-    Serial.print("Connected to WiFi with IP: ");
-    Serial.println(WiFi.localIP());
-    Serial.println();
+    unsigned long startAttemptTime = millis();
 
-    // Start the NTP client
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+        delay(1000);
+        Serial.println("Attempting to connect to WiFi...");
+        digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));  // Blink LED while connecting
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        digitalWrite(STATUS_LED, HIGH);  // Solid LED when connected
+        Serial.println("Connected to WiFi");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+
+    } 
+    else {
+        Serial.println("Failed to connect to saved WiFi. Using AP mode only.");
+        // Blink LED rapidly in AP-only mode
+        for (int i = 0; i < 10; i++) {
+            digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
+            delay(100);
+        }
+    }
+
+    // Start NTP client
     timeClient.begin();
-    Serial.println("NTP client started\n");
 
     // Set up web server routes
     server.on("/", handleRoot);
-    server.on("/setkey", HTTP_POST, handleSetKey);
-
-    // Start the web server
+    server.on("/setconfig", HTTP_POST, handleSetConfig);
     server.begin();
     Serial.println("Web server started");
 
-    // Initial TOTP setup
+    // Initial TOTP setup (unchanged)
     char formattedKey[MAX_SECRET_KEY_LENGTH];
     formatBase32Key(base32Key, formattedKey);
-    Serial.println(formattedKey);
     size_t hmacKeyLen = base32_decode(formattedKey, hmacKey);
     totp = TOTP(hmacKey, hmacKeyLen);
 }
@@ -140,10 +202,8 @@ void setup() {
 void loop() {
     server.handleClient();
 
-    // Update the time
+    // Update the time and TOTP code (unchanged)
     timeClient.update();
-
-    // Generate the TOTP code and, if different from the previous one, print to screen
     String newCode = totp.getCode(timeClient.getEpochTime());
     if (totpCode != newCode) {
         totpCode = newCode;
@@ -151,5 +211,5 @@ void loop() {
         Serial.println(newCode);
     }
 
-    delay(1000); // Add a delay to avoid flooding the output
+    delay(1000);
 }
