@@ -238,6 +238,22 @@ void setup() {
 }
 
 
+// Timeout for TOTP refresh (typically 30 seconds)
+#define TOTP_PERIOD 30
+
+void drawTimeoutCircle(uint8_t percentage) {
+    // Define the circle's position and size
+    int centerX = SCREEN_WIDTH - 10;  // Right side of the screen
+    int centerY = SCREEN_HEIGHT / 2;  // Middle of the screen
+    int radius = 10;  // Radius of the circle
+
+    // Draw the outer circle
+    display.drawCircle(centerX, centerY, radius, SSD1306_WHITE);
+
+    // Draw filled circle based on percentage
+    int filledRadius = map(percentage, 0, 100, 0, radius);
+    display.fillCircle(centerX, centerY, filledRadius, SSD1306_WHITE);
+}
 
 void loop() {
     server.handleClient();
@@ -245,6 +261,14 @@ void loop() {
     // Update the time and TOTP code
     timeClient.update();
     String newCode = totp.getCode(timeClient.getEpochTime());
+
+    // Calculate remaining time for the current TOTP period
+    unsigned long currentTime = timeClient.getEpochTime();
+    unsigned long secondsSincePeriodStart = currentTime % TOTP_PERIOD;
+    unsigned long remainingSeconds = TOTP_PERIOD - secondsSincePeriodStart;
+    uint8_t timeoutPercentage = (secondsSincePeriodStart * 100) / TOTP_PERIOD;
+
+    // Update TOTP display if the code has changed
     if (totpCode != newCode) {
         totpCode = newCode;
         Serial.print("TOTP code for ");
@@ -261,8 +285,17 @@ void loop() {
         display.setCursor(0, 16);  // Second line for TOTP code
         display.setTextSize(2);    // Bigger font for the code
         display.println(totpCode);
+
+        // Draw timeout circle on the right side of the screen
+        drawTimeoutCircle(timeoutPercentage);
+
         display.display();
     }
-  
-    delay(10);  // Short delay to prevent watchdog timer issues
+
+    // Update the timeout circle continuously
+    display.fillRect(SCREEN_WIDTH - 20, 0, 20, SCREEN_HEIGHT, SSD1306_BLACK); // Clear previous circle
+    drawTimeoutCircle(timeoutPercentage);
+    display.display();
+    
+    delay(100);  // Short delay to prevent watchdog timer issues
 }
