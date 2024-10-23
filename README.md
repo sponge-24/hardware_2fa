@@ -33,8 +33,7 @@ A secure hardware-based Time-based One-Time Password (TOTP) generator implemente
 
 ### Device in Action
 
-<iframe width="560" height="315" src="<iframe width="560" height="315" src="https://www.youtube.com/embed/example" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+[Watch the video](https://www.youtube.com/watch?v=t_AUBZh5xeY)
 
 ## Installation
 
