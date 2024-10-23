@@ -265,22 +265,15 @@ void setup() {
     totp = TOTP(hmacKey, hmacKeyLen);
 }
 
-void drawProgressCircle(int x, int y, int radius, float progress) {
-    int segments = 100;  // Number of segments to fill the circle
-    int filledSegments = progress * segments;  // Proportional to progress
-
-    for (int i = 0; i < filledSegments; i++) {
-        float angleStart = 2 * PI * i / segments;
-        float angleEnd = 2 * PI * (i + 1) / segments;
-
-        int x1 = x + radius * cos(angleStart);
-        int y1 = y + radius * sin(angleStart);
-        int x2 = x + radius * cos(angleEnd);
-        int y2 = y + radius * sin(angleEnd);
-
-        display.drawLine(x, y, x1, y1, SSD1306_WHITE);  // Draw lines to form the circle
-        display.drawLine(x, y, x2, y2, SSD1306_WHITE);  // Another segment for smoothness
-    }
+void drawWaterLevel(int x, int y, int width, int height, float progress) {
+    // Calculate the filled height based on progress (inverted since we want it to decrease)
+    int filledHeight = (height * progress);
+    
+    // Draw the outer rectangle frame
+    display.drawRect(x, y - height, width, height, SSD1306_WHITE);
+    
+    // Fill the rectangle from bottom up
+    display.fillRect(x, y - filledHeight, width, filledHeight, SSD1306_WHITE);
 }
 
 void loop() {
@@ -327,8 +320,8 @@ void loop() {
     display.setTextSize(2);    // Bigger font for the code
     display.println(totpCode);
 
-    // Draw the timeout progress circle (move left by adjusting x, e.g., 100 to 90)
-    drawProgressCircle(96, 20, 7, remainingTime / 30.0f);  // Position: (x, y), radius: 10, progress from 0 to 1
+    // Draw the water level visualization (x: 96, y: 28, width: 8, height: 20)
+    drawWaterLevel(96, 28, 8, 20, remainingTime / 30.0f);
 
     display.display();
   
