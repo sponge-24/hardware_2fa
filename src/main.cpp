@@ -107,6 +107,8 @@ void loadConfig() {
 }
 
 void handleRoot() {
+    IPAddress clientIP = server.client().remoteIP();
+    if (clientIP[0] == 192 && clientIP[1] == 168 && clientIP[2] == 4){
     String html = "<!DOCTYPE html>";
     html += "<html lang='en'><head><meta charset='UTF-8'>";
     html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
@@ -132,8 +134,11 @@ void handleRoot() {
     html += "<input type='password' id='password' name='password' value='" + String(password) + "' placeholder='Enter password' required>";
     html += "<input type='submit' value='Update Configuration'>";
     html += "</form></div></body></html>";
-
     server.send(200, "text/html", html);
+    }
+    else{
+      server.send(403, "text/plain", "Access forbidden: not connected via Access Point.");
+    }
 }
 
 
