@@ -107,17 +107,35 @@ void loadConfig() {
 }
 
 void handleRoot() {
-    String html = "<html><body>";
-    html += "<h1>TOTP Configuration</h1>";
+    String html = "<!DOCTYPE html>";
+    html += "<html lang='en'><head><meta charset='UTF-8'>";
+    html += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+    html += "<title>TOTP Configuration</title>";
+    html += "<style>";
+    html += "body { font-family: 'Courier New', Courier, monospace; background-color: #1d1f21; color: #e0e0e0; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }";
+    html += ".container { background-color: #282c34; padding: 30px; border-radius: 12px; box-shadow: 0 0 20px rgba(0, 255, 153, 0.4); max-width: 400px; width: 100%; border: 1px solid #00ff99; }";
+    html += "h1 { font-size: 1.8rem; color: #00ff99; text-align: center; margin-bottom: 20px; }";
+    html += "label { display: block; margin: 10px 0 5px; color: #00ffcc; font-weight: bold; }";
+    html += "input[type='text'], input[type='password'] { background-color: #1c1e22; border: 1px solid #00ffcc; color: #00ffcc; padding: 10px; margin: 5px 0 15px; border-radius: 6px; width: 100%; font-size: 1rem; box-sizing: border-box; }";
+    html += "input[type='submit'] { background-color: #00ff99; color: black; padding: 12px; border: none; border-radius: 6px; width: 100%; font-size: 1rem; cursor: pointer; transition: background-color 0.3s ease; }";
+    html += "input[type='submit']:hover { background-color: #00cc77; }";
+    html += "</style></head><body>";
+    html += "<div class='container'><h1>TOTP Configuration</h1>";
     html += "<form action='/setconfig' method='post'>";
-    html += "Account Name: <input type='text' name='accountname' value='" + String(accountName) + "'><br>";
-    html += "Secret Key: <input type='text' name='secretkey' value='" + String(base32Key) + "'><br>";
-    html += "WiFi SSID: <input type='text' name='ssid' value='" + String(ssid) + "'><br>";
-    html += "WiFi Password: <input type='password' name='password' value='" + String(password) + "'><br>";
+    html += "<label for='accountname'>Account Name:</label>";
+    html += "<input type='text' id='accountname' name='accountname' value='" + String(accountName) + "' placeholder='your account name'>";
+    html += "<label for='secretkey'>Secret Key:</label>";
+    html += "<input type='text' id='secretkey' name='secretkey' value='" + String(base32Key) + "' placeholder='your secret key'>";
+    html += "<label for='ssid'>WiFi SSID:</label>";
+    html += "<input type='text' id='ssid' name='ssid' value='" + String(ssid) + "' placeholder='Enter ssid '>";
+    html += "<label for='password'>WiFi Password:</label>";
+    html += "<input type='password' id='password' name='password' value='" + String(password) + "' placeholder='Enter password' required>";
     html += "<input type='submit' value='Update Configuration'>";
-    html += "</form></body></html>";
+    html += "</form></div></body></html>";
+
     server.send(200, "text/html", html);
 }
+
 
 void handleSetConfig() {
 
@@ -237,22 +255,22 @@ void setup() {
     totp = TOTP(hmacKey, hmacKeyLen);
 }
 
+void drawProgressCircle(int x, int y, int radius, float progress) {
+    int segments = 100;  // Number of segments to fill the circle
+    int filledSegments = progress * segments;  // Proportional to progress
 
-// Timeout for TOTP refresh (typically 30 seconds)
-#define TOTP_PERIOD 30
+    for (int i = 0; i < filledSegments; i++) {
+        float angleStart = 2 * PI * i / segments;
+        float angleEnd = 2 * PI * (i + 1) / segments;
 
-void drawTimeoutCircle(uint8_t percentage) {
-    // Define the circle's position and size
-    int centerX = SCREEN_WIDTH - 10;  // Right side of the screen
-    int centerY = SCREEN_HEIGHT / 2;  // Middle of the screen
-    int radius = 10;  // Radius of the circle
+        int x1 = x + radius * cos(angleStart);
+        int y1 = y + radius * sin(angleStart);
+        int x2 = x + radius * cos(angleEnd);
+        int y2 = y + radius * sin(angleEnd);
 
-    // Draw the outer circle
-    display.drawCircle(centerX, centerY, radius, SSD1306_WHITE);
-
-    // Draw filled circle based on percentage
-    int filledRadius = map(percentage, 0, 100, 0, radius);
-    display.fillCircle(centerX, centerY, filledRadius, SSD1306_WHITE);
+        display.drawLine(x, y, x1, y1, SSD1306_WHITE);  // Draw lines to form the circle
+        display.drawLine(x, y, x2, y2, SSD1306_WHITE);  // Another segment for smoothness
+    }
 }
 
 void loop() {
@@ -261,41 +279,33 @@ void loop() {
     // Update the time and TOTP code
     timeClient.update();
     String newCode = totp.getCode(timeClient.getEpochTime());
+    
+    // Compute time left for the current TOTP code
+    unsigned long currentEpochTime = timeClient.getEpochTime();
+    int remainingTime = 30 - (currentEpochTime % 30);  // TOTP typically changes every 30 seconds
 
-    // Calculate remaining time for the current TOTP period
-    unsigned long currentTime = timeClient.getEpochTime();
-    unsigned long secondsSincePeriodStart = currentTime % TOTP_PERIOD;
-    unsigned long remainingSeconds = TOTP_PERIOD - secondsSincePeriodStart;
-    uint8_t timeoutPercentage = (secondsSincePeriodStart * 100) / TOTP_PERIOD;
-
-    // Update TOTP display if the code has changed
     if (totpCode != newCode) {
         totpCode = newCode;
         Serial.print("TOTP code for ");
         Serial.print(accountName);
         Serial.print(": ");
         Serial.println(totpCode);
-
-        // Update OLED display
-        display.clearDisplay();
-        display.setTextSize(1);
-        display.setTextColor(SSD1306_WHITE);
-        display.setCursor(0, 0);  // First line for account name
-        display.println(accountName);
-        display.setCursor(0, 16);  // Second line for TOTP code
-        display.setTextSize(2);    // Bigger font for the code
-        display.println(totpCode);
-
-        // Draw timeout circle on the right side of the screen
-        drawTimeoutCircle(timeoutPercentage);
-
-        display.display();
     }
 
-    // Update the timeout circle continuously
-    display.fillRect(SCREEN_WIDTH - 20, 0, 20, SCREEN_HEIGHT, SSD1306_BLACK); // Clear previous circle
-    drawTimeoutCircle(timeoutPercentage);
+    // Clear and update OLED display
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0);  // First line for account name
+    display.println(accountName);
+    display.setCursor(0, 16);  // Second line for TOTP code
+    display.setTextSize(2);    // Bigger font for the code
+    display.println(totpCode);
+
+    // Draw the timeout progress circle (move left by adjusting x, e.g., 100 to 90)
+    drawProgressCircle(96, 20, 7, remainingTime / 30.0f);  // Position: (x, y), radius: 10, progress from 0 to 1
+
     display.display();
-    
-    delay(100);  // Short delay to prevent watchdog timer issues
+  
+    delay(100);  // Short delay for smoother animation
 }
