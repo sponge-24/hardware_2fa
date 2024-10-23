@@ -6,9 +6,19 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
+#include <ThreeWire.h>  
+#include <RtcDS1302.h>
+
+// Initialize connection pins for RTC module
+#define CLOCK_PIN 16    // CLK/SCL
+#define DATA_PIN 17     // DAT/SDA  
+#define RST_PIN 18     // RST/CE
+
+ThreeWire myWire(DATA_PIN, CLOCK_PIN, RST_PIN);
+RtcDS1302<ThreeWire> Rtc(myWire);
 
 // Define the push button pin
-#define PUSH_BUTTON 16 // Change this to the appropriate pin for your board
+#define PUSH_BUTTON 19 // Change this to the appropriate pin for your board
 
 // OLED display width and height
 #define SCREEN_WIDTH 128
@@ -231,6 +241,10 @@ void setup() {
         Serial.println("Access Point disabled");
     }
 
+    // Start NTP client
+    timeClient.begin();
+    Rtc.Begin();
+
     // Try to connect to saved WiFi
     WiFi.begin(ssid, password);
     unsigned long startAttemptTime = millis();
@@ -242,15 +256,18 @@ void setup() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
+
         digitalWrite(STATUS_LED, HIGH);  // Solid LED when connected
         Serial.println("Connected to WiFi");
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
-        
-    }
 
-    // Start NTP client
-    timeClient.begin();
+        timeClient.update();
+        RtcDateTime timeToSet;
+        timeToSet.InitWithEpoch32Time(timeClient.getEpochTime());
+        Rtc.SetDateTime(timeToSet);
+
+    }
 
     // Set up web server routes
     server.on("/", handleRoot);
@@ -295,11 +312,12 @@ void loop() {
         }
     }
     // Update the time and TOTP code
-    timeClient.update();
-    String newCode = totp.getCode(timeClient.getEpochTime());
+    RtcDateTime now = Rtc.GetDateTime();
+
+    String newCode = totp.getCode(now.Epoch32Time());
     
     // Compute time left for the current TOTP code
-    unsigned long currentEpochTime = timeClient.getEpochTime();
+    unsigned long currentEpochTime =now.Epoch32Time();
     int remainingTime = 30 - (currentEpochTime % 30);  // TOTP typically changes every 30 seconds
 
     if (totpCode != newCode) {
