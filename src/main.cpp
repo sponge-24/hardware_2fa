@@ -1,17 +1,17 @@
 /*
- * ESP32 TOTP Generator
- * 
- * This device generates Time-based One-Time Passwords (TOTP) and displays them
- * on an OLED screen. It includes WiFi connectivity for time synchronization
- * and a web interface for configuration.
- * 
- * Hardware Requirements:
- * - ESP32 Board
- * - SSD1306 OLED Display (128x32)
- * - RTC DS1302 Module
- * - Push Button
- * - Status LED
- */
+* ESP32 TOTP Generator
+* 
+* This device generates Time-based One-Time Passwords (TOTP) and displays them
+* on an OLED screen. It includes WiFi connectivity for time synchronization
+* and a web interface for configuration.
+* 
+* Hardware Requirements:
+* - ESP32 Board
+* - SSD1306 OLED Display (128x32)
+* - RTC DS1302 Module
+* - Push Button
+* - Status LED
+*/
 
 #include <WiFi.h>           // WiFi connectivity
 #include <Wire.h>           // I2C communication
@@ -78,11 +78,11 @@ TOTP totp = TOTP(hmacKey, sizeof(hmacKey));
 String totpCode;
 
 /**
- * Decodes a base32 encoded string into a byte array
- * @param base32 Input base32 string
- * @param output Output byte array
- * @return Number of decoded bytes
- */
+* Decodes a base32 encoded string into a byte array
+* @param base32 Input base32 string
+* @param output Output byte array
+* @return Number of decoded bytes
+*/
 
 int base32_decode(const char *base32, uint8_t *output) {
     const char *base32Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -114,11 +114,11 @@ int base32_decode(const char *base32, uint8_t *output) {
 }
 
 /**
- * Formats a raw key into proper base32 format
- * Removes spaces and converts to uppercase
- * @param rawKey Input key string
- * @param formattedKey Output formatted key
- */
+* Formats a raw key into proper base32 format
+* Removes spaces and converts to uppercase
+* @param rawKey Input key string
+* @param formattedKey Output formatted key
+*/
 
 void formatBase32Key(const char* rawKey, char* formattedKey) {
     size_t len = strlen(rawKey);
@@ -134,9 +134,9 @@ void formatBase32Key(const char* rawKey, char* formattedKey) {
 }
 
 /**
- * Saves current configuration to EEPROM
- * Stores TOTP secret, account name, and WiFi credentials
- */
+* Saves current configuration to EEPROM
+* Stores TOTP secret, account name, and WiFi credentials
+*/
 void saveConfig() {
     EEPROM.put(SECRET_KEY_ADDRESS, base32Key);
     EEPROM.put(ACCOUNT_NAME_ADDRESS, accountName);
@@ -146,9 +146,9 @@ void saveConfig() {
 }
 
 /**
- * Loads configuration from EEPROM
- * Includes validation of loaded values
- */
+* Loads configuration from EEPROM
+* Includes validation of loaded values
+*/
 void loadConfig() {
     EEPROM.get(SECRET_KEY_ADDRESS, base32Key);
     EEPROM.get(ACCOUNT_NAME_ADDRESS, accountName);
@@ -163,10 +163,10 @@ void loadConfig() {
 }
 
 /**
- * Handles the root webpage request
- * Serves the configuration interface if accessed via AP
- * Implements basic security by checking client IP
- */
+* Handles the root webpage request
+* Serves the configuration interface if accessed via AP
+* Implements basic security by checking client IP
+*/
 void handleRoot() {
 
     // Only allow connections via access points
@@ -191,7 +191,7 @@ void handleRoot() {
         html += "<label for='accountname'>Account Name:</label>";
         html += "<input type='text' id='accountname' name='accountname' value='" + String(accountName) + "' placeholder='your account name'>";
         html += "<label for='secretkey'>Secret Key:</label>";
-        html += "<input type='text' id='secretkey' name='secretkey' value='" + String(base32Key) + "' placeholder='your secret key'>";
+        html += "<input type='password' id='secretkey' name='secretkey' value='" + String(base32Key) + "' placeholder='your secret key'>";
         html += "<label for='ssid'>WiFi SSID:</label>";
         html += "<input type='text' id='ssid' name='ssid' value='" + String(ssid) + "' placeholder='Enter ssid '>";
         html += "<label for='password'>WiFi Password:</label>";
@@ -206,10 +206,10 @@ void handleRoot() {
 }
 
 /**
- * Handles configuration updates from the web interface
- * Updates settings and saves to EEPROM if changes are detected
- * Restarts the device after configuration changes
- */
+* Handles configuration updates from the web interface
+* Updates settings and saves to EEPROM if changes are detected
+* Restarts the device after configuration changes
+*/
 void handleSetConfig() {
 
     bool configChanged = false;
@@ -265,9 +265,9 @@ void handleSetConfig() {
 
 
 /**
- * Initial setup function
- * Initializes hardware components and establishes connections
- */
+* Initial setup function
+* Initializes hardware components and establishes connections
+*/
 void setup() {
 
     // Initialize serial communication
@@ -309,7 +309,7 @@ void setup() {
     timeClient.begin();
     Rtc.Begin();
 
-     // Connect to WiFi
+    // Connect to WiFi
     WiFi.begin(ssid, password);
     unsigned long startAttemptTime = millis();
 
@@ -348,13 +348,13 @@ void setup() {
 }
 
 /**
- * Draws a vertical progress bar for TOTP time remaining
- * @param x X coordinate of the bar
- * @param y Y coordinate of the bar (bottom)
- * @param width Width of the bar
- * @param height Height of the bar
- * @param progress Progress value (0.0 to 1.0)
- */
+* Draws a vertical progress bar for TOTP time remaining
+* @param x X coordinate of the bar
+* @param y Y coordinate of the bar (bottom)
+* @param width Width of the bar
+* @param height Height of the bar
+* @param progress Progress value (0.0 to 1.0)
+*/
 void drawWaterLevel(int x, int y, int width, int height, float progress) {
     // Calculate filled height based on progress (inverted for countdown effect)
     int filledHeight = (height * progress);
@@ -368,14 +368,14 @@ void drawWaterLevel(int x, int y, int width, int height, float progress) {
 
 
 /**
- * Main loop function
- * Handles:
- * - Web server requests
- * - Push button monitoring
- * - TOTP code generation
- * - Display updates
- * - Progress bar animation
- */
+* Main loop function
+* Handles:
+* - Web server requests
+* - Push button monitoring
+* - TOTP code generation
+* - Display updates
+* - Progress bar animation
+*/
 void loop() {
 
     // Handle any pending web server requests
@@ -425,7 +425,7 @@ void loop() {
     display.setCursor(0, 0); 
     display.print(accountName);
 
-     // Add AP mode indicator if active
+    // Add AP mode indicator if active
     if (WiFi.getMode() == WIFI_AP_STA) {
         display.setCursor(112, 0);
         display.print("AP"); 
