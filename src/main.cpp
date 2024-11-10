@@ -59,7 +59,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 #define MAX_PASSWORD_LENGTH 64
 
 
-#define STATUS_LED 2  // Built-in LED for status indication
+#define STATUS_LED 23  // Built-in LED for status indication
 
 // Configuration storage
 char ssid[MAX_SSID_LENGTH] = "";
@@ -423,7 +423,14 @@ void loop() {
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
     display.setCursor(0, 0); 
-    display.println(accountName);
+    display.print(accountName);
+
+     // Add AP mode indicator if active
+    if (WiFi.getMode() == WIFI_AP_STA) {
+        display.setCursor(112, 0);
+        display.print("AP"); 
+    }
+    display.println();
 
     // Display TOTP code in larger font
     display.setCursor(0, 16); 
