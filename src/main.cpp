@@ -13,6 +13,7 @@
 * - Status LED
 */
 
+#include <Arduino.h>        // Arduino based coding
 #include <WiFi.h>           // WiFi connectivity
 #include <Wire.h>           // I2C communication
 #include <NTPClient.h>      // Network Time Protocol client
