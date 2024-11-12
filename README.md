@@ -16,12 +16,17 @@ A secure hardware-based Time-based One-Time Password (TOTP) generator implemente
 
 ## Hardware Requirements
 
-- ESP32 Development Board
-- SSD1306 OLED Display (128x32)
-- DS1302 RTC Module
-- Push Button
-- Status LED
-- Connecting wires
+- **ESP 32**  - Main controller
+- **Breadboard** – Build Circuits
+- **OLED Display** - User interface
+- **RTC Module** - Time tracking
+- **Push Button** - Configuration trigger
+- **LED** - System status indicator
+- **TP4056 Battery Charging Module** – Charging the battery
+- **MT3608 Buck Booster** – Booting the battery voltage above 5v
+- **Connecting Wires** – Making Connections
+- **3.7v Lithium-ion battery** – Powering the system
+
 
 ### Build Output
 
