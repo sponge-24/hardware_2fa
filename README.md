@@ -37,9 +37,13 @@ A secure hardware-based Time-based One-Time Password (TOTP) generator implemente
 ![Output](./images/3.jpeg)
 ![Output](./images/4.jpeg)
 
+### Pin Diagram
+
+![totp_configuration_website](./images/pin_diagram.png)
+
 ### TOTP Configuration website
 
-![totp_configuration_website](./totp_configuration_website.jpg)
+![totp_configuration_website](./images/totp_configuration_website.jpg)
 
 ### Device in Action
 
