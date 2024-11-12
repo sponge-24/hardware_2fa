@@ -32,7 +32,10 @@ A secure hardware-based Time-based One-Time Password (TOTP) generator implemente
 
 ### Build Output
 
-![Output](./output.jpg)
+![Output](./images/1.jpeg)
+![Output](./images/2.jpeg)
+![Output](./images/3.jpeg)
+![Output](./images/4.jpeg)
 
 ### TOTP Configuration website
 
