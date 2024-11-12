@@ -13,6 +13,8 @@ A secure hardware-based Time-based One-Time Password (TOTP) generator implemente
 - 💾 Persistent storage of settings
 - 🔒 Access Point mode for secure configuration
 - 🖥️ Serial monitoring for debugging
+- 🔋 Battery Powered
+
 
 ## Hardware Requirements
 
